@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rafter agent update` refreshes every installed integration after a CLI upgrade.** It finds the platforms rafter is installed for, from the install record or, for older installs, from rafter's own files, and re-applies their skills, rules, sub-agents, instruction blocks, hooks and MCP entries, as `agent init` does, without adding any platform you did not install or changing your risk level. Edited files are kept as with `init`. Supports `--dry-run`, `--force`, `--quiet` and `--local`. Both Node and Python.
+- **`rafter agent status` and `rafter agent verify` say when installed integrations are out of date** and name `rafter agent update`; their `--json` output gains `stale` and `installed_version`. An out-of-date install does not change `verify`'s exit code. Both Node and Python.
+
 ### Changed
 
 - **`rafter agent init` reports what it did to each installed file.** Every skill file (including `docs/`), per-skill rule file and sub-agent file gets one line: `added`, `updated`, `kept` or `replaced`; files already up to date are summed into one `N files unchanged` line. `--dry-run` shows the same predicted outcome per file. Lines that need attention (`kept`, `replaced`) still print, to stderr, under `--quiet`. Both Node and Python.
