@@ -114,3 +114,31 @@ export function injectInstructionFile(filePath: string): boolean {
 export function injectAiderNote(filePath: string): boolean {
   return injectMarkedBlock(filePath, AIDER_SKILL_NOTE, AIDER_NOTE_MARKER_START, AIDER_NOTE_MARKER_END);
 }
+
+/** Strip the rafter marker block from a text file, writing only if the file actually changed. */
+export function stripMarkerBlock(filePath: string): boolean {
+  if (!fs.existsSync(filePath)) return false;
+  const content = fs.readFileSync(filePath, "utf-8");
+  const startIdx = content.indexOf(RAFTER_MARKER_START);
+  const endIdx = content.indexOf(RAFTER_MARKER_END);
+  if (startIdx === -1 || endIdx === -1) return false;
+  const before = content.slice(0, startIdx).trimEnd();
+  const after = content.slice(endIdx + RAFTER_MARKER_END.length);
+  const trailing = after.replace(/^\s*\n+/, "");
+  const next = (before ? before + "\n" : "") + trailing;
+  fs.writeFileSync(filePath, next, "utf-8");
+  return true;
+}
+
+/**
+ * Take rafter's block out of an instruction file rafter no longer writes
+ * (e.g. the consolidated .cursor/rules/rafter-security.mdc). The file is
+ * deleted only when nothing else is left in it; a file without the block is
+ * not rafter's and is left alone.
+ */
+export function retireInstructionFile(filePath: string): "removed" | "stripped" | null {
+  if (!stripMarkerBlock(filePath)) return null;
+  if (fs.readFileSync(filePath, "utf-8").trim()) return "stripped";
+  fs.unlinkSync(filePath);
+  return "removed";
+}

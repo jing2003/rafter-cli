@@ -6,22 +6,23 @@ import {
   RAFTER_MARKER_START,
   RAFTER_MARKER_END,
   injectInstructionFile,
+  retireInstructionFile,
+  stripMarkerBlock,
 } from "./instruction-block.js";
 import { ConfigManager } from "../../core/config-manager.js";
 import { KNOWN_SKILL_NAMES } from "../skill/registry.js";
 import {
   InstallSession,
   RULE_SKILLS,
+  cleanupLegacyOpenClaw,
   cleanupRetiredRules,
   cleanupRetiredSkills,
   cursorAgentArtifacts,
+  openclawSkillArtifacts,
+  openclawSkillPath,
   ruleArtifacts,
   skillArtifacts,
 } from "./install-files.js";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Component granularity for `rafter agent enable/disable/list`.
@@ -109,21 +110,6 @@ function hookEntryMatchesRafter(entry: any, prefix: string): boolean {
   const hooks = entry?.hooks;
   if (!Array.isArray(hooks)) return false;
   return hooks.some((h) => String(h?.command ?? "").startsWith(prefix));
-}
-
-/** Strip the rafter marker block from a text file, writing only if the file actually changed. */
-function stripMarkerBlock(filePath: string): boolean {
-  if (!fs.existsSync(filePath)) return false;
-  const content = fs.readFileSync(filePath, "utf-8");
-  const startIdx = content.indexOf(RAFTER_MARKER_START);
-  const endIdx = content.indexOf(RAFTER_MARKER_END);
-  if (startIdx === -1 || endIdx === -1) return false;
-  const before = content.slice(0, startIdx).trimEnd();
-  const after = content.slice(endIdx + RAFTER_MARKER_END.length);
-  const trailing = after.replace(/^\s*\n+/, "");
-  const next = (before ? before + "\n" : "") + trailing;
-  fs.writeFileSync(filePath, next, "utf-8");
-  return true;
 }
 
 /** True when a file exists and contains the rafter marker block. */
@@ -250,10 +236,6 @@ function withSession(session: InstallSession | undefined, fn: (s: InstallSession
   });
   fn(s);
   if (!session) s.save();
-}
-
-function skillTemplatePath(name: string): string {
-  return path.join(__dirname, "..", "..", "..", "resources", "skills", name, "SKILL.md");
 }
 
 /**
@@ -515,10 +497,7 @@ function cursorInstructions(): ComponentSpec {
     install: (session) => withSession(session, (s) => {
       s.applyAll(ruleArtifacts("cursor", home));
       cleanupRetiredRules(s, "cursor");
-      // Migrate away from the legacy consolidated rule.
-      if (fs.existsSync(legacyPath)) {
-        try { fs.unlinkSync(legacyPath); } catch { /* best-effort */ }
-      }
+      retireInstructionFile(legacyPath);
       s.applyAll(cursorAgentArtifacts(home));
     }),
     uninstall: () => {
@@ -526,7 +505,7 @@ function cursorInstructions(): ComponentSpec {
         const p = path.join(rulesDir, `${name}.mdc`);
         if (fs.existsSync(p)) fs.rmSync(p, { force: true });
       }
-      if (fs.existsSync(legacyPath)) fs.rmSync(legacyPath, { force: true });
+      retireInstructionFile(legacyPath);
       if (fs.existsSync(agentPath)) fs.rmSync(agentPath, { force: true });
     },
   };
@@ -1004,23 +983,19 @@ function aiderRead(): ComponentSpec {
 
 function openclawSkill(): ComponentSpec {
   const home = os.homedir();
-  const skillPath = path.join(home, ".openclaw", "skills", "rafter-security.md");
+  const skillPath = openclawSkillPath(home);
   return {
     id: "openclaw.skills",
     platform: "openclaw",
     kind: "skills",
-    description: "OpenClaw rafter-security skill",
+    description: "OpenClaw rafter-security skill (~/.openclaw/workspace/skills/rafter-security/SKILL.md)",
     detectDir: path.join(home, ".openclaw"),
     path: skillPath,
     isInstalled: () => fs.existsSync(skillPath),
-    install: () => {
-      const dir = path.dirname(skillPath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      const template = skillTemplatePath("rafter");
-      if (fs.existsSync(template)) {
-        fs.copyFileSync(template, skillPath);
-      }
-    },
+    install: (session) => withSession(session, (s) => {
+      s.applyAll(openclawSkillArtifacts(home));
+      cleanupLegacyOpenClaw(s);
+    }),
     uninstall: () => {
       if (fs.existsSync(skillPath)) fs.rmSync(skillPath, { force: true });
     },
