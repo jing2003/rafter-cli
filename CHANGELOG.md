@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`rafter agent init` reports what it did to each installed file.** Every skill file (including `docs/`), per-skill rule file and sub-agent file gets one line: `added`, `updated`, `kept` or `replaced`; files already up to date are summed into one `N files unchanged` line. `--dry-run` shows the same predicted outcome per file. Lines that need attention (`kept`, `replaced`) still print, to stderr, under `--quiet`. Both Node and Python.
+
+### Fixed
+
+- **Re-running `rafter agent init` or `rafter agent enable` no longer overwrites skill, rule or sub-agent files you edited.** A file that still holds content rafter installed is updated as before; a file you changed is left alone, and the new version is written beside it as `<file>.rafter-new`. `rafter agent init --force` replaces such a file and saves the old one as `<file>.bak`. Rafter records what it installed in `~/.rafter/installed.json` (`./.rafter/installed.json` with `--local`), and recognizes files from earlier releases by their content. Both Node and Python.
+- **Retired skills and rules are removed only when they are unmodified rafter files.** A renamed skill directory or rule file left over from an earlier release is deleted only if it carries rafter's publisher tag or matches content rafter shipped; otherwise it is kept and reported. Both Node and Python.
+- **The Cursor sub-agent written by the Python CLI no longer has a stray blank line in its frontmatter**, so it now matches the file the Node CLI writes. Python only.
+
 ## [0.11.2] - 2026-10-27
 
 ### Added
